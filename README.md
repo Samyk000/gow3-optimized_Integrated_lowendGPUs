@@ -52,6 +52,15 @@ and Linux (experimental AppImage).
 > 
 > ---
 > 
+> #### 📸 Verified In-Game Proof & Hardware Benchmark:
+> *Running smoothly on a 15W laptop CPU (**12th Gen Intel® Core™ i5-1235U** with **Intel® Iris® Xe Graphics**) deep into the story after defeating Hermes:*
+> 
+> <p align="center">
+>   <img src="docs/images/gameplay_proof_hermes.png" alt="God of War III Remastered PC Port running smoothly on Intel Iris Xe Graphics after Hermes" width="100%">
+> </p>
+> 
+> ---
+> 
 > ### 📩 How to Get the Optimized Build File:
 > The optimized files, custom build executables, and direct setup assistance are available privately. Reach out directly on Telegram:
 > 
