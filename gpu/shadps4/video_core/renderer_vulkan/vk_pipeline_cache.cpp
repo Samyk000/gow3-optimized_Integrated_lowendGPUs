@@ -1114,12 +1114,30 @@ bool PipelineCache::RefreshGraphicsStages(PipelineSelection& sel) {
         // Stride will still be handled outside the pipeline using dynamic state.
         u32 vertex_binding = 0;
         for (const auto& attrib : sel.fetch_shader->attributes) {
+            if (vertex_binding >= MaxVertexBufferCount) {
+                LOG_WARNING(Render_Vulkan,
+                            "Vertex attribute binding count exceeded limit: {} >= {}",
+                            vertex_binding, MaxVertexBufferCount);
+                if (sel.worker) {
+                    sel.worker->failed = true;
+                    return false;
+                }
+                break;
+            }
             const auto& buffer = attrib.GetSharp(*vs_info);
-            ASSERT_MSG(vertex_binding < MaxVertexBufferCount,
-                       "Vertex attribute binding count exceeded limit: {} >= {}", vertex_binding,
-                       MaxVertexBufferCount);
-            key.vertex_buffer_formats[vertex_binding++] =
-                Vulkan::LiverpoolToVK::SurfaceFormat(buffer.GetDataFmt(), buffer.GetNumberFmt());
+            // The V# may come from user data the guest is still writing: an unknown format
+            // marks speculative draw-preparation failed so the GPU thread resolves it safely.
+            vk::Format format =
+                Vulkan::LiverpoolToVK::TrySurfaceFormat(buffer.GetDataFmt(), buffer.GetNumberFmt());
+            if (format == vk::Format::eUndefined &&
+                buffer.GetDataFmt() != AmdGpu::DataFormat::FormatInvalid) {
+                if (sel.worker) {
+                    sel.worker->failed = true;
+                    return false;
+                }
+                format = vk::Format::eR32Uint;
+            }
+            key.vertex_buffer_formats[vertex_binding++] = format;
         }
     }
 

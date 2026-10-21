@@ -209,8 +209,10 @@ static constexpr std::array BITS_PER_BLOCK = {
 
 u32 NumBitsPerBlock(DataFormat format) {
     const u32 index = static_cast<u32>(format);
-    ASSERT_MSG(index < BITS_PER_BLOCK.size(), "Invalid data format = {}", format);
-    return BITS_PER_BLOCK[index];
+    if (index >= BITS_PER_BLOCK.size() || BITS_PER_BLOCK[index] < 0) {
+        return 0;
+    }
+    return static_cast<u32>(BITS_PER_BLOCK[index]);
 }
 
 static constexpr std::array BITS_PER_ELEMENT = {
@@ -260,8 +262,10 @@ static constexpr std::array BITS_PER_ELEMENT = {
 
 u32 NumBitsPerElement(DataFormat format) {
     const u32 index = static_cast<u32>(format);
-    ASSERT_MSG(index < BITS_PER_ELEMENT.size(), "Invalid data format = {}", format);
-    return BITS_PER_ELEMENT[index];
+    if (index >= BITS_PER_ELEMENT.size() || BITS_PER_ELEMENT[index] < 0) {
+        return 0;
+    }
+    return static_cast<u32>(BITS_PER_ELEMENT[index]);
 }
 
 } // namespace AmdGpu

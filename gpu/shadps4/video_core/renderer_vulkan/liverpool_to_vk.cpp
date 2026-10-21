@@ -781,15 +781,19 @@ static auto surface_format_table = []() constexpr {
 }();
 
 vk::Format TrySurfaceFormat(AmdGpu::DataFormat data_format, AmdGpu::NumberFormat num_format) {
+    if (static_cast<u32>(data_format) >= (1 << amd_gpu_data_format_bit_size) ||
+        static_cast<u32>(num_format) >= (1 << amd_gpu_number_format_bit_size)) {
+        return vk::Format::eUndefined;
+    }
     return surface_format_table[GetSurfaceFormatTableIndex(data_format, num_format)];
 }
 
 vk::Format SurfaceFormat(AmdGpu::DataFormat data_format, AmdGpu::NumberFormat num_format) {
-    vk::Format result = surface_format_table[GetSurfaceFormatTableIndex(data_format, num_format)];
-    bool found =
-        result != vk::Format::eUndefined || data_format == AmdGpu::DataFormat::FormatInvalid;
-    ASSERT_MSG(found, "Unknown data_format={} and num_format={}", static_cast<u32>(data_format),
-               static_cast<u32>(num_format));
+    vk::Format result = TrySurfaceFormat(data_format, num_format);
+    if (result == vk::Format::eUndefined && data_format != AmdGpu::DataFormat::FormatInvalid) {
+        LOG_WARNING(Render_Vulkan, "Unknown or in-flight data_format={} and num_format={}",
+                    static_cast<u32>(data_format), static_cast<u32>(num_format));
+    }
     return result;
 }
 
@@ -829,8 +833,11 @@ vk::Format DepthFormat(DepthBuffer::ZFormat z_format, DepthBuffer::StencilFormat
         std::find_if(formats.begin(), formats.end(), [&](const DepthFormatInfo& format_info) {
             return format_info.z_format == z_format && format_info.stencil_format == stencil_format;
         });
-    ASSERT_MSG(format != formats.end(), "Unknown z_format={} and stencil_format={}",
-               static_cast<u32>(z_format), static_cast<u32>(stencil_format));
+    if (format == formats.end()) {
+        LOG_WARNING(Render_Vulkan, "Unknown or in-flight z_format={} and stencil_format={}",
+                    static_cast<u32>(z_format), static_cast<u32>(stencil_format));
+        return vk::Format::eUndefined;
+    }
     return format->vk_format;
 }
 
