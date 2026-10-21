@@ -7,7 +7,10 @@
 #include <unordered_map>
 #include <algorithm>
 #include <bit>
+#include <cstdio>
 #include <cstdlib>
+#include <string>
+#include <fmt/format.h>
 #include <magic_enum/magic_enum.hpp>
 #include "spartanport_copy.h"
 #include "spartanport_toggles.h"
@@ -88,10 +91,36 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
     block_shift = std::bit_width(block_size) - 1;
     blocks_per_arena_page = arena_page_size / block_size;
     blocks_per_arena_page_shift = arena_page_bits - block_shift;
-    arena_memory_type_index =
-        FindMemoryType(instance.GetMemoryProperties(), vk::MemoryPropertyFlagBits::eDeviceLocal,
-                       reqs.memoryTypeBits)
-            .value();
+    const auto& memory_props = instance.GetMemoryProperties();
+    for (const bool local : {true, false}) {
+        for (u32 i = 0; i < memory_props.memoryTypeCount; ++i) {
+            const bool is_local = bool(memory_props.memoryTypes[i].propertyFlags &
+                                       vk::MemoryPropertyFlagBits::eDeviceLocal);
+            if (((reqs.memoryTypeBits >> i) & 1) != 0 && is_local == local) {
+                arena_memory_types.push_back(i);
+            }
+        }
+    }
+    ASSERT_MSG(!arena_memory_types.empty() &&
+                   bool(memory_props.memoryTypes[arena_memory_types[0]].propertyFlags &
+                        vk::MemoryPropertyFlagBits::eDeviceLocal),
+               "No device-local memory type for sparse buffer arenas");
+    std::string types_text;
+    for (const u32 type : arena_memory_types) {
+        const u32 heap = memory_props.memoryTypes[type].heapIndex;
+        types_text += fmt::format(" {} (heap {}, {} MiB{})", type, heap,
+                                  memory_props.memoryHeaps[heap].size >> 20,
+                                  (memory_props.memoryHeaps[heap].flags &
+                                   vk::MemoryHeapFlagBits::eDeviceLocal)
+                                      ? ", device-local"
+                                      : "");
+    }
+    std::printf("GPU: buffer arena memory types:%s\n", types_text.c_str());
+    if (const char* env = std::getenv("GOW3_ARENA_LIMIT_MB")) {
+        arena_limit_bytes = std::strtoull(env, nullptr, 10) << 20;
+        std::printf("GPU: buffer arena limit %llu MiB in type %u (GOW3_ARENA_LIMIT_MB)\n",
+                    (unsigned long long)(arena_limit_bytes >> 20), arena_memory_types[0]);
+    }
 
     const u64 bda_pagetable_size =
         (blocks_per_arena_page * num_arena_pages) * sizeof(vk::DeviceAddress);
@@ -538,6 +567,73 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
         .flags = vk::MemoryAllocateFlagBits::eDeviceAddress,
     };
 
+    const auto allocate_arena_memory = [&](u64 alloc_size) -> vk::DeviceMemory {
+        const auto& arena_memory_props = instance.GetMemoryProperties();
+        const auto carve_out_full = [&](u32 type) {
+            const u32 heap = arena_memory_props.memoryTypes[type].heapIndex;
+            if (!bool(arena_memory_props.memoryHeaps[heap].flags &
+                      vk::MemoryHeapFlagBits::eDeviceLocal)) {
+                return false;
+            }
+            return arena_type_bytes[type] + alloc_size >
+                   arena_memory_props.memoryHeaps[heap].size / 4 * 3;
+        };
+
+        vk::DeviceMemory mem{};
+        vk::Result last_result = vk::Result::eErrorOutOfDeviceMemory;
+        for (const u32 type : arena_memory_types) {
+            if (arena_limit_bytes != 0 && type == arena_memory_types[0] &&
+                arena_type_bytes[type] + alloc_size > arena_limit_bytes) {
+                last_result = vk::Result::eErrorOutOfDeviceMemory;
+            } else if (carve_out_full(type)) {
+                if ((arena_fallback_logged & (1u << type)) == 0) {
+                    arena_fallback_logged |= 1u << type;
+                    std::printf("GPU: buffer arena type %u is a device-local heap with %llu MiB "
+                                "placed there already; keeping the carve-out for the rest and using "
+                                "the shared heap; heaps:%s\n",
+                                type, (unsigned long long)(arena_type_bytes[type] >> 20),
+                                instance.HeapUsageText().c_str());
+                    std::fflush(stdout);
+                }
+                last_result = vk::Result::eErrorOutOfDeviceMemory;
+            } else {
+                const vk::MemoryAllocateInfo alloc_info = {
+                    .pNext = &flags_info,
+                    .allocationSize = alloc_size,
+                    .memoryTypeIndex = type,
+                };
+                auto [result, memory] = instance.GetDevice().allocateMemory(alloc_info);
+                last_result = result;
+                if (result == vk::Result::eSuccess) {
+                    mem = memory;
+                    arena_type_bytes[type] += alloc_size;
+                    break;
+                }
+            }
+            if (last_result != vk::Result::eErrorOutOfDeviceMemory) {
+                break;
+            }
+            if ((arena_fallback_logged & (1u << type)) == 0) {
+                arena_fallback_logged |= 1u << type;
+                std::printf("GPU: buffer arena out of memory in type %u (%llu MiB resident there, "
+                            "%llu MiB asked); trying the next memory type; heaps:%s\n",
+                            type, (unsigned long long)(arena_type_bytes[type] >> 20),
+                            (unsigned long long)(alloc_size >> 20), instance.HeapUsageText().c_str());
+                std::fflush(stdout);
+            }
+        }
+        if (!mem) {
+            std::string resident_text;
+            for (const u32 type : arena_memory_types) {
+                resident_text += fmt::format(" type {}: {} MiB", type, arena_type_bytes[type] >> 20);
+            }
+            resident_text += "; heaps:" + instance.HeapUsageText();
+            ASSERT_MSG(false, "Buffer arena allocation of {} MiB failed in every memory type ({}); resident:{}",
+                       alloc_size >> 20, vk::to_string(last_result), resident_text);
+        }
+        return mem;
+    };
+
     if (current_pool_chunk.memory &&
         (current_pool_chunk.size - current_pool_chunk.used) >= requested_bytes) {
         device_memory = current_pool_chunk.memory;
@@ -545,21 +641,11 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
         current_pool_chunk.used += requested_bytes;
     } else if (requested_bytes >= POOL_CHUNK_SIZE) {
         const u64 alloc_size = Common::AlignUp(requested_bytes, block_size);
-        const vk::MemoryAllocateInfo alloc_info = {
-            .pNext = &flags_info,
-            .allocationSize = alloc_size,
-            .memoryTypeIndex = arena_memory_type_index,
-        };
-        device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+        device_memory = allocate_arena_memory(alloc_size);
         allocated_device_memories.push_back(device_memory);
         base_memory_offset = 0;
     } else {
-        const vk::MemoryAllocateInfo alloc_info = {
-            .pNext = &flags_info,
-            .allocationSize = POOL_CHUNK_SIZE,
-            .memoryTypeIndex = arena_memory_type_index,
-        };
-        device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+        device_memory = allocate_arena_memory(POOL_CHUNK_SIZE);
         allocated_device_memories.push_back(device_memory);
         current_pool_chunk = {
             .memory = device_memory,

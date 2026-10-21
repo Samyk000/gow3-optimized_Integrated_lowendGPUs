@@ -4,6 +4,7 @@
 #pragma once
 
 #include <span>
+#include <string>
 #include <unordered_map>
 
 #include "video_core/renderer_vulkan/vk_platform.h"
@@ -503,6 +504,14 @@ public:
     /// spartanport: the driver's current budget of the heaps GetDeviceMemoryUsage counts
     /// (VK_EXT_memory_budget: what this process can use now, other processes included).
     [[nodiscard]] u64 GetDeviceMemoryBudgetNow() const;
+
+    /// spartanport: the maximum number of workgroups in X of one dispatch (65536 on Intel iGPUs).
+    u32 MaxComputeWorkGroupCountX() const {
+        return properties.limits.maxComputeWorkGroupCount[0];
+    }
+
+    /// spartanport: " N: used/budget MiB (size S)" for every heap, for the log.
+    [[nodiscard]] std::string HeapUsageText() const;
 
     /// Returns the total memory budget available to the device.
     [[nodiscard]] u64 GetTotalMemoryBudget() const {

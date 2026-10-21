@@ -355,7 +355,11 @@ bool Instance::CreateDevice() {
     custom_border_color = add_extension(VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
     depth_clip_control = add_extension(VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME);
     depth_clip_enable = add_extension(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
-    vertex_input_dynamic_state = add_extension(VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
+    const bool intel_windows = (driver_id == vk::DriverId::eIntelProprietaryWindows);
+    const char* dyn_vtx_env = std::getenv("GOW3_VERTEX_INPUT_DYNAMIC");
+    const bool allow_dyn_vtx = dyn_vtx_env ? (*dyn_vtx_env != '0') : !intel_windows;
+    vertex_input_dynamic_state =
+        allow_dyn_vtx && add_extension(VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
     list_restart = add_extension(VK_EXT_PRIMITIVE_TOPOLOGY_LIST_RESTART_EXTENSION_NAME);
     if (list_restart) {
         list_restart_features =
@@ -970,6 +974,24 @@ u64 Instance::GetDeviceMemoryBudgetNow() const {
         total_budget += memory_budget_props.heapBudget[heap];
     }
     return total_budget;
+}
+
+std::string Instance::HeapUsageText() const {
+    vk::PhysicalDeviceMemoryBudgetPropertiesEXT budget{};
+    vk::PhysicalDeviceMemoryProperties2 props{};
+    if (supports_memory_budget) {
+        props.pNext = &budget;
+    }
+    physical_device.getMemoryProperties2(&props);
+    std::string text;
+    for (u32 i = 0; i < props.memoryProperties.memoryHeapCount; ++i) {
+        const u64 size = props.memoryProperties.memoryHeaps[i].size;
+        text += supports_memory_budget
+                    ? fmt::format(" {}: {}/{} MiB (size {})", i, budget.heapUsage[i] >> 20,
+                                  budget.heapBudget[i] >> 20, size >> 20)
+                    : fmt::format(" {}: size {} MiB", i, size >> 20);
+    }
+    return text;
 }
 
 vk::FormatFeatureFlags2 Instance::GetFormatFeatureFlags(vk::Format format) const {

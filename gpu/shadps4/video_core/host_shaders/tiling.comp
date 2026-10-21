@@ -9,6 +9,12 @@
 
 layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
+// spartanport: first texel of this dispatch; large images are split into several dispatches
+// (maxComputeWorkGroupCount[0] is 65536 on Intel GPUs).
+layout (push_constant) uniform Push {
+    uint base_texel;
+};
+
 layout(constant_id = 0) const uint NUM_SAMPLES = 1;
 layout(constant_id = 1) const uint MICRO_TILE_MODE = 1;
 layout(constant_id = 2) const uint MICRO_TILE_THICKNESS = 1;
@@ -425,7 +431,8 @@ uint GetMipLevel(inout uint texel) {
 }
 
 void main() {
-    uint texel = gl_GlobalInvocationID.x;
+    const uint index = base_texel + gl_GlobalInvocationID.x;
+    uint texel = index;
     uint mip = GetMipLevel(texel);
     uint pitch = info.mips[mip].pitch;
     uint height = info.mips[mip].height;
@@ -441,8 +448,8 @@ void main() {
 #endif
 
     if (IS_TILER != 0) {
-        tiled_data[tiled_offset / BYTES_PER_PIXEL] = linear_data[gl_GlobalInvocationID.x];
+        tiled_data[tiled_offset / BYTES_PER_PIXEL] = linear_data[index];
     } else {
-        linear_data[gl_GlobalInvocationID.x] = tiled_data[tiled_offset / BYTES_PER_PIXEL];
+        linear_data[index] = tiled_data[tiled_offset / BYTES_PER_PIXEL];
     }
 }

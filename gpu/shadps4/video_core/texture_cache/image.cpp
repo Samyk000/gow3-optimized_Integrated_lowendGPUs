@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "spartanport_toggles.h"
+#include <array>
+#include <atomic>
+#include <cstdio>
 #include <ranges>
+#include <string>
+#include <fmt/format.h>
 #include "common/assert.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -18,6 +23,84 @@ namespace VideoCore {
 using namespace Vulkan;
 
 Common::IncrementalIdProvider<u64> Image::global_image_uid{};
+
+// " N: VMA used/budget MiB, driver used MiB (size S)" for every heap, for the log.
+static std::string VmaHeapText(VmaAllocator allocator) {
+    const VkPhysicalDeviceMemoryProperties* props{};
+    vmaGetMemoryProperties(allocator, &props);
+    std::array<VmaBudget, VK_MAX_MEMORY_HEAPS> budgets{};
+    vmaGetHeapBudgets(allocator, budgets.data());
+    std::string text;
+    for (u32 i = 0; i < props->memoryHeapCount; ++i) {
+        text += fmt::format(" {}: {}/{} MiB, driver {} MiB (size {})", i,
+                            budgets[i].statistics.allocationBytes >> 20, budgets[i].budget >> 20,
+                            budgets[i].usage >> 20, props->memoryHeaps[i].size >> 20);
+    }
+    return text;
+}
+
+// When device-local memory is a small carve-out and a shared heap several times larger exists,
+// images use the shared heap to prevent VMA from exhausting the carve-out.
+static u32 SharedHeapMemoryTypes(VmaAllocator allocator) {
+    static const u32 types = [allocator] {
+        const VkPhysicalDeviceMemoryProperties* props{};
+        vmaGetMemoryProperties(allocator, &props);
+        u32 shared = VK_MAX_MEMORY_HEAPS;
+        VkDeviceSize shared_size = 0;
+        VkDeviceSize local_size = 0;
+        std::string text;
+        for (u32 i = 0; i < props->memoryHeapCount; ++i) {
+            const bool device_local =
+                (props->memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0;
+            text += fmt::format(" {}: {} MiB{}", i, props->memoryHeaps[i].size >> 20,
+                                device_local ? " device-local" : "");
+            if (device_local) {
+                local_size += props->memoryHeaps[i].size;
+                continue;
+            }
+            if (props->memoryHeaps[i].size > shared_size) {
+                shared_size = props->memoryHeaps[i].size;
+                shared = i;
+            }
+        }
+        if (shared == VK_MAX_MEMORY_HEAPS || local_size == 0 || shared_size < (2ull << 30) ||
+            shared_size < 4 * local_size) {
+            return 0u;
+        }
+        u32 types = 0;
+        for (u32 i = 0; i < props->memoryTypeCount; ++i) {
+            if (props->memoryTypes[i].heapIndex == shared) {
+                types |= 1u << i;
+            }
+        }
+        if (types == 0) {
+            return 0u;
+        }
+        std::printf("GPU: memory heaps:%s; images use the %llu MiB shared heap, device-local is a "
+                    "%llu MiB carve-out VMA was filling first\n",
+                    text.c_str(), (unsigned long long)(shared_size >> 20),
+                    (unsigned long long)(local_size >> 20));
+        std::fflush(stdout);
+        return types;
+    }();
+    return types;
+}
+
+static u32 DeviceLocalMemoryTypes(VmaAllocator allocator) {
+    static const u32 types = [allocator] {
+        const VkPhysicalDeviceMemoryProperties* props{};
+        vmaGetMemoryProperties(allocator, &props);
+        u32 types = 0;
+        for (u32 i = 0; i < props->memoryTypeCount; ++i) {
+            const u32 heap = props->memoryTypes[i].heapIndex;
+            if ((props->memoryHeaps[heap].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
+                types |= 1u << i;
+            }
+        }
+        return types;
+    }();
+    return types;
+}
 
 static vk::ImageUsageFlags ImageUsageFlags(const Vulkan::Instance& instance,
                                            const ImageInfo& info) {
@@ -102,11 +185,12 @@ void UniqueImage::Destroy() {
 void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
     this->image_ci = image_ci;
     ASSERT(!image);
-    const VmaAllocationCreateInfo alloc_ci = {
+    VmaAllocationCreateInfo alloc_ci = {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
         .requiredFlags = 0,
         .preferredFlags = 0,
+        .memoryTypeBits = SharedHeapMemoryTypes(allocator),
         .pool = VK_NULL_HANDLE,
         .pUserData = nullptr,
     };
@@ -116,8 +200,71 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
     VmaAllocationInfo alloc_info{};
     VkResult result = vmaCreateImage(allocator, &image_ci_unsafe, &alloc_ci, &unsafe_image,
                                      &allocation, &alloc_info);
-    ASSERT_MSG(result == VK_SUCCESS, "Failed allocating image with error {}",
-               vk::to_string(vk::Result{result}));
+    if (result != VK_SUCCESS && alloc_ci.memoryTypeBits != 0) {
+        // Fall back to VMA's own choice if format/usage restricts memory type or budget was reached
+        VmaAllocationCreateInfo relaxed_ci = alloc_ci;
+        relaxed_ci.memoryTypeBits = 0;
+        result = vmaCreateImage(allocator, &image_ci_unsafe, &relaxed_ci, &unsafe_image,
+                                &allocation, &alloc_info);
+    }
+    if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY) {
+        // Retry without WITHIN_BUDGET
+        static std::atomic<u64> failures{0};
+        const u64 failure = ++failures;
+        if (failure <= 5 || failure % 100 == 0) {
+            std::printf("GPU: image %ux%ux%u, %u mips, %u layers, format %s over the memory "
+                        "budget (failure %llu); allocating beyond it; VMA heaps:%s\n",
+                        image_ci.extent.width, image_ci.extent.height, image_ci.extent.depth,
+                        image_ci.mipLevels, image_ci.arrayLayers,
+                        vk::to_string(image_ci.format).c_str(), (unsigned long long)failure,
+                        VmaHeapText(allocator).c_str());
+            std::fflush(stdout);
+        }
+        VmaAllocationCreateInfo retry_ci = alloc_ci;
+        retry_ci.flags &= ~VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
+        result = vmaCreateImage(allocator, &image_ci_unsafe, &retry_ci, &unsafe_image,
+                                &allocation, &alloc_info);
+        if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY) {
+            // Place in non-device-local (system memory) heap
+            const VkPhysicalDeviceMemoryProperties* props{};
+            vmaGetMemoryProperties(allocator, &props);
+            u32 host_types = 0;
+            for (u32 i = 0; i < props->memoryTypeCount; ++i) {
+                const u32 heap = props->memoryTypes[i].heapIndex;
+                if (!(props->memoryHeaps[heap].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)) {
+                    host_types |= 1u << i;
+                }
+            }
+            if (host_types != 0) {
+                static std::atomic<u64> host_fallbacks{0};
+                const u64 fallback = ++host_fallbacks;
+                if (fallback <= 5 || fallback % 100 == 0) {
+                    std::printf("GPU: image %ux%ux%u %s refused by the driver; placing it in "
+                                "system memory (fallback %llu)\n",
+                                image_ci.extent.width, image_ci.extent.height,
+                                image_ci.extent.depth, vk::to_string(image_ci.format).c_str(),
+                                (unsigned long long)fallback);
+                    std::fflush(stdout);
+                }
+                retry_ci.memoryTypeBits = host_types;
+                result = vmaCreateImage(allocator, &image_ci_unsafe, &retry_ci, &unsafe_image,
+                                        &allocation, &alloc_info);
+            }
+        }
+        if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY) {
+            // Try device-local carve-out as last resort
+            const u32 local_types = DeviceLocalMemoryTypes(allocator);
+            if (local_types != 0 && local_types != retry_ci.memoryTypeBits) {
+                retry_ci.memoryTypeBits = local_types;
+                result = vmaCreateImage(allocator, &image_ci_unsafe, &retry_ci, &unsafe_image,
+                                        &allocation, &alloc_info);
+            }
+        }
+    }
+    ASSERT_MSG(result == VK_SUCCESS, "Failed allocating image {}x{}x{} {} with error {}; VMA heaps:{}",
+               image_ci.extent.width, image_ci.extent.height, image_ci.extent.depth,
+               vk::to_string(image_ci.format), vk::to_string(vk::Result{result}),
+               VmaHeapText(allocator));
     image = vk::Image{unsafe_image};
     size_bytes = alloc_info.size;
 }
