@@ -21,6 +21,10 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#include <mmsystem.h>
+static void cleanup_timer(void) {
+    timeEndPeriod(1);
+}
 #else
 #include <sys/mman.h>
 #include <malloc.h>
@@ -854,6 +858,8 @@ int main(int argc, char **argv) {
         return describe_displays();
     }
 #ifdef _WIN32
+    timeBeginPeriod(1);
+    atexit(cleanup_timer);
     /* The PS4 user range must stay free of host allocations (GPU driver, heaps), and the guest
      * TCB needs one of the 64 TEB TLS slots before DLLs (Vulkan drivers) take them. */
     runtime_memory_reserve();

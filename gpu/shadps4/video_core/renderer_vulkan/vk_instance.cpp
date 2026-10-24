@@ -19,6 +19,7 @@
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
+#include "spartanport_settings.h"
 
 #include <vk_mem_alloc.h>
 
@@ -187,6 +188,10 @@ Instance::Instance(const Frontend::WindowSystemInfo& window_info, s32 physical_d
     properties = physical_device.getProperties();
     memory_properties = physical_device.getMemoryProperties();
     CollectDeviceParameters();
+    SpartanSettings::AutoConfigureForGpu(
+        properties.deviceName.data(),
+        properties.deviceType == vk::PhysicalDeviceType::eIntegratedGpu
+    );
     ASSERT_MSG(properties.apiVersion >= TargetVulkanApiVersion,
                "Vulkan {}.{} is required, but only {}.{} is supported by device!",
                VK_VERSION_MAJOR(TargetVulkanApiVersion), VK_VERSION_MINOR(TargetVulkanApiVersion),

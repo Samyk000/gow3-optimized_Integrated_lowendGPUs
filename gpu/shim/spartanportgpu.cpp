@@ -6,6 +6,9 @@
 #include "spartanport_copy.h"
 #ifndef _WIN32
 #include <sys/resource.h>
+#else
+#include <windows.h>
+#include <mmsystem.h>
 #endif
 #include "spartanport_toggles.h"
 #include <algorithm>
@@ -191,6 +194,10 @@ bool g_window_ready;
 
 u32 SpartanDisplayRefreshHz() {
     static const u32 hz = [] {
+        const bool needed_init = !SDL_WasInit(SDL_INIT_VIDEO);
+        if (needed_init) {
+            SDL_InitSubSystem(SDL_INIT_VIDEO);
+        }
         const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
         const u32 rate = mode && mode->refresh_rate > 0 ? u32(mode->refresh_rate + 0.5f) : 60;
         std::printf("GPU: vblank follows the display refresh rate, %u Hz\n", rate);
@@ -219,7 +226,11 @@ static void StartProfileWriter() {
 #endif
 
 extern "C" int spartanportgpu_init(const SpartanGpuConfig* config) {
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
     SpartanSettings::Load();
+    SpartanSettings::AutoConfigureDisplayRefresh(SpartanDisplayRefreshHz());
 #ifdef SPARTAN_PGO_GENERATE
     StartProfileWriter();
 #endif

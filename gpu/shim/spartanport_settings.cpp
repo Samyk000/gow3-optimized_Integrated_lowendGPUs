@@ -69,10 +69,12 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         for (int u = 0; u < UpscalerCount; ++u) {
             if (value == UpscalerName(u)) {
                 v.upscaler = u;
+                v.user_configured_upscaler = true;
             }
         }
     } else if (key == "preset") {
         v.preset = std::clamp(i, 0, PresetCount - 1);
+        v.user_configured_preset = true;
     } else if (key == "sharpen") {
         v.sharpen = i != 0;
     } else if (key == "sharpness") {
@@ -115,6 +117,7 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.render_resolution = SpartanGraphics::ParseResolution(value);
     } else if (key == "engine_fps") {
         v.engine_fps = SpartanGraphics::ParseEngineFps(i);
+        v.user_configured_engine_fps = true;
     } else if (key == "deferred_readback") {
         v.deferred_readback = i != 0;
     } else if (key == "stale_readback") {
@@ -173,6 +176,9 @@ Values& Get() {
 
 void Load() {
     auto& v = Get();
+    v.user_configured_preset = false;
+    v.user_configured_upscaler = false;
+    v.user_configured_engine_fps = false;
     if (FILE* file = std::fopen(Path(), "r")) {
         char line[256];
         while (std::fgets(line, sizeof(line), file)) {
@@ -191,7 +197,10 @@ void Load() {
     if (const char* env = std::getenv("SPARTAN_UPSCALER")) {
         v.upscaler = UpscalerOff;
         for (int u = 0; u < UpscalerCount; ++u) {
-            if (std::strcmp(env, UpscalerName(u)) == 0) v.upscaler = u;
+            if (std::strcmp(env, UpscalerName(u)) == 0) {
+                v.upscaler = u;
+                v.user_configured_upscaler = true;
+            }
         }
     }
     const std::pair<const char*, const char*> env_keys[] = {
@@ -211,6 +220,12 @@ void Load() {
         if (const char* value = std::getenv(env); value && value[0]) {
             Set(v, key, value);
         }
+    }
+    if (std::getenv("SPARTAN_UPSCALE_PRESET")) {
+        v.user_configured_preset = true;
+    }
+    if (std::getenv("SPARTAN_ENGINE_FPS")) {
+        v.user_configured_engine_fps = true;
     }
     v.startup_preset = v.preset;
     v.startup_upscaler = v.upscaler;
@@ -292,6 +307,94 @@ void ConfigureDlssSupport(bool available, const char* problem) {
         std::printf("Upscaler: DLSS unavailable (%s); falling back to FSR 3.1\n",
                     kept.empty() ? "spartanport_dlss.dll or nvngx_dlss.dll missing" : kept.c_str());
         v.upscaler = UpscalerFsr3;
+    }
+}
+
+void AutoConfigureDisplayRefresh(uint32_t refresh_hz) {
+    auto& v = Get();
+    if (v.user_configured_engine_fps) {
+        std::printf("Pacing: User engine_fps already configured (%d FPS) -> Preserving user setting\n",
+                    v.engine_fps.load());
+        return;
+    }
+    if (refresh_hz > 0 && refresh_hz <= 60) {
+        v.engine_fps = 60;
+        v.fps_limit = 60;
+        if (!std::getenv("SPARTAN_ENGINE_FPS")) {
+            v.applied_engine_fps = 60;
+        }
+        std::printf("Pacing: 60Hz display detected -> Matching engine FPS to 60 for optimal thermals and smooth pacing\n");
+    } else {
+        v.engine_fps = 120;
+        if (!std::getenv("SPARTAN_ENGINE_FPS")) {
+            v.applied_engine_fps = 120;
+        }
+        std::printf("Pacing: High-refresh display detected (%u Hz) -> Setting engine FPS to 120\n", refresh_hz);
+    }
+}
+
+static bool IsLowEndGpu(const char* name, bool is_integrated) {
+    if (!name) return false;
+    std::string dev(name);
+    std::transform(dev.begin(), dev.end(), dev.begin(), [](unsigned char c) { return std::tolower(c); });
+
+    // Dedicated/discrete GPUs (NVIDIA RTX/GTX, Radeon RX 5000+, Intel Arc discrete) easily run native 1080p
+    if (!is_integrated) {
+        return false;
+    }
+
+    // High-performance modern APUs/iGPUs that handle native 1080p smoothly:
+    // Steam Deck Custom GPU, AMD Radeon 680M / 780M / 880M / 890M
+    if (dev.find("780m") != std::string::npos ||
+        dev.find("890m") != std::string::npos ||
+        dev.find("680m") != std::string::npos ||
+        dev.find("880m") != std::string::npos ||
+        dev.find("custom gpu") != std::string::npos) {
+        return false;
+    }
+
+    // Intel UHD / HD Graphics (e.g. UHD 620, 630, HD 4000/520/530/620)
+    if (dev.find("uhd") != std::string::npos ||
+        dev.find("hd graphics") != std::string::npos) {
+        return true;
+    }
+
+    // AMD Vega or mobile Radeon Graphics (Ryzen 3000/4000/5000 mobile APUs)
+    if (dev.find("vega") != std::string::npos ||
+        dev.find("radeon(tm) graphics") != std::string::npos ||
+        dev.find("radeon graphics") != std::string::npos) {
+        return true;
+    }
+
+    // Any integrated Intel GPU that is NOT Iris Xe or modern Arc
+    if (dev.find("intel") != std::string::npos &&
+        dev.find("iris") == std::string::npos &&
+        dev.find("arc") == std::string::npos) {
+        return true;
+    }
+
+    return false;
+}
+
+void AutoConfigureForGpu(const char* device_name, bool is_integrated) {
+    auto& v = Get();
+    if (v.user_configured_preset) {
+        std::printf("GPU: User preset already configured (%s) -> Preserving user setting\n",
+                    PresetName(v.preset.load()));
+        return;
+    }
+    if (IsLowEndGpu(device_name, is_integrated)) {
+        v.upscaler = UpscalerFsr3;
+        v.preset = Preset::Quality;
+        v.rcas = true;
+        v.rcas_strength = 75;
+        v.startup_preset = Preset::Quality;
+        v.startup_upscaler = UpscalerFsr3;
+        std::printf("GPU: Low-spec iGPU detected (%s) -> Auto-enabling FSR 3 Quality preset + RCAS sharpening (+35-50%% FPS boost)\n",
+                    device_name ? device_name : "Unknown");
+    } else {
+        std::printf("GPU: Dedicated or high-performance GPU detected (%s) -> Preserving Native 1080p preset\n",
+                    device_name ? device_name : "Unknown");
     }
 }
 

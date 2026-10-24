@@ -120,6 +120,11 @@ struct Values {
     std::atomic<bool> dlss_supported{false};
     std::atomic<const char*> dlss_problem{nullptr};
 
+    /// Explicit user configuration tracking: prevents auto-detect from overriding custom settings
+    std::atomic<bool> user_configured_preset{false};
+    std::atomic<bool> user_configured_upscaler{false};
+    std::atomic<bool> user_configured_engine_fps{false};
+
     /// Startup settings for the explicit SPARTAN_RENDER_RES compatibility patch only.
     int startup_preset = NativeAA;
     int startup_upscaler = UpscalerFsr3;
@@ -136,6 +141,12 @@ void Load();
 void ConfigureUpscalerSupport(bool fsr4, bool fsr411);
 /// After device creation: DLSS availability; a DLSS setting falls back to FSR 3.1 without it.
 void ConfigureDlssSupport(bool available, const char* problem);
+/// Auto-configures engine FPS and limiter based on display refresh rate (e.g. 60 FPS for 60Hz screens)
+/// if the user hasn't explicitly set engine_fps.
+void AutoConfigureDisplayRefresh(uint32_t refresh_hz);
+/// Auto-configures upscaler and preset based on GPU capabilities (e.g. FSR 3 Quality for low-end iGPUs)
+/// if the user hasn't explicitly set preset.
+void AutoConfigureForGpu(const char* device_name, bool is_integrated);
 /// Startup-patched scene dimensions cannot change until run.sh prepares a new image.
 bool FixedRenderSession();
 int RenderPreset();

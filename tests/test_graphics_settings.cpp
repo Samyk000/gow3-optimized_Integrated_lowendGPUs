@@ -166,6 +166,41 @@ int main() {
     const std::string cheats = Read(path);
     assert(cheats.find("cheat_double_jumps=1\n") != std::string::npos);
     assert(cheats.find("cheat_very_hard=1\n") != std::string::npos);
+
+    // Auto-configuration testing
+    {
+        std::ofstream out(path);
+        out << "# Empty config\n";
+    }
+    SpartanSettings::Load();
+    assert(!v.user_configured_engine_fps && !v.user_configured_preset);
+    SpartanSettings::AutoConfigureDisplayRefresh(60);
+    assert(v.engine_fps == 60 && v.fps_limit == 60);
+    SpartanSettings::AutoConfigureDisplayRefresh(144);
+    assert(v.engine_fps == 120);
+
+    SpartanSettings::AutoConfigureForGpu("Intel(R) UHD Graphics 620", true);
+    assert(v.upscaler == SpartanSettings::UpscalerFsr3 && v.preset == SpartanSettings::Quality && v.rcas);
+
+    {
+        std::ofstream out(path);
+        out << "# Empty config\n";
+    }
+    SpartanSettings::Load();
+    SpartanSettings::AutoConfigureForGpu("NVIDIA GeForce RTX 4070", false);
+    assert(v.preset == SpartanSettings::NativeAA);
+
+    {
+        std::ofstream out(path);
+        out << "engine_fps=240\npreset=0\n";
+    }
+    SpartanSettings::Load();
+    assert(v.user_configured_engine_fps && v.user_configured_preset);
+    SpartanSettings::AutoConfigureDisplayRefresh(60);
+    assert(v.engine_fps == 240);
+    SpartanSettings::AutoConfigureForGpu("Intel(R) UHD Graphics 620", true);
+    assert(v.preset == SpartanSettings::NativeAA);
+
     std::remove(path);
     std::puts("PASS: graphics settings");
 }
