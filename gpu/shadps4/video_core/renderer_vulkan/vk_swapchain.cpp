@@ -140,8 +140,8 @@ bool Swapchain::AcquireNextImage() {
 
     switch (result) {
     case vk::Result::eSuccess:
-        break;
     case vk::Result::eSuboptimalKHR:
+        break;
     case vk::Result::eErrorSurfaceLostKHR:
     case vk::Result::eErrorOutOfDateKHR:
     case vk::Result::eErrorUnknown:
@@ -172,11 +172,11 @@ bool Swapchain::Present() {
     };
 
     auto result = instance.GetPresentQueue().presentKHR(present_info);
-    if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR ||
-        result == vk::Result::eErrorSurfaceLostKHR) {
+    if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eErrorSurfaceLostKHR) {
         needs_recreation = true;
     } else {
-        ASSERT_MSG(result == vk::Result::eSuccess, "Swapchain presentation failed: {}",
+        ASSERT_MSG(result == vk::Result::eSuccess || result == vk::Result::eSuboptimalKHR,
+                   "Swapchain presentation failed: {}",
                    vk::to_string(result));
     }
 

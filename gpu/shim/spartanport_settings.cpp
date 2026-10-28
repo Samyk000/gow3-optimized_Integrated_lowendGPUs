@@ -319,7 +319,6 @@ void AutoConfigureDisplayRefresh(uint32_t refresh_hz) {
     }
     if (refresh_hz > 0 && refresh_hz <= 60) {
         v.engine_fps = 60;
-        v.fps_limit = 60;
         if (!std::getenv("SPARTAN_ENGINE_FPS")) {
             v.applied_engine_fps = 60;
         }

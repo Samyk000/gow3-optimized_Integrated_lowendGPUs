@@ -175,7 +175,7 @@ int main() {
     SpartanSettings::Load();
     assert(!v.user_configured_engine_fps && !v.user_configured_preset);
     SpartanSettings::AutoConfigureDisplayRefresh(60);
-    assert(v.engine_fps == 60 && v.fps_limit == 60);
+    assert(v.engine_fps == 60);
     SpartanSettings::AutoConfigureDisplayRefresh(144);
     assert(v.engine_fps == 120);
 
