@@ -31,3 +31,8 @@ patches.json
 !packaging/icon/monogram.png
 /.vscode
 
+
+# Private research & optimization playbooks (DO NOT PUSH)
+*PLAYBOOK*.md
+*playbook*.md
+docs/*PLAYBOOK*.md
