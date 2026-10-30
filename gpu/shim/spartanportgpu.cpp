@@ -224,6 +224,7 @@ static void StartProfileWriter() {
 extern "C" int spartanportgpu_init(const SpartanGpuConfig* config) {
 #ifdef _WIN32
     timeBeginPeriod(1);
+    SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
 #endif
     SpartanSettings::Load();
 #ifdef SPARTAN_PGO_GENERATE

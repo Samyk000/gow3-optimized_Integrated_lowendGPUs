@@ -22,6 +22,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
+#include "license_check.h" 
 static void cleanup_timer(void) {
     timeEndPeriod(1);
 }
@@ -834,7 +835,9 @@ static int describe_displays(void) {
 
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
-#ifndef _WIN32
+#ifdef _WIN32
+    SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+#else
     /* Keep host heap objects handed to the guest (thread handles, TLS) in the
        non-PIE brk heap, i.e. below 1 TiB: the guest packs pointers into 40 bits. */
     mallopt(M_ARENA_MAX,1);
@@ -860,6 +863,11 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     timeBeginPeriod(1);
     atexit(cleanup_timer);
+#if 1 /* PCPortOP Lock: Connected for V3 Community Build */
+    if (!license_check_prompt()) {
+        return 0;
+    }
+#endif
     /* The PS4 user range must stay free of host allocations (GPU driver, heaps), and the guest
      * TCB needs one of the 64 TEB TLS slots before DLLs (Vulkan drivers) take them. */
     runtime_memory_reserve();

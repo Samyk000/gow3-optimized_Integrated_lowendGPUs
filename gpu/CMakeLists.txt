@@ -197,12 +197,12 @@ if (WIN32)
     target_compile_options(atrac9 PRIVATE -w)
     set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
     add_executable(spartanport-probe ../src/probe.c ${SPARTAN_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
-        ../src/isa_rewrite.c ../src/isa_emulate.c
+        ../src/isa_rewrite.c ../src/isa_emulate.c ../src/license_check.c
         ../packaging/windows/spartanport-probe.rc)
     set_target_properties(spartanport-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
     target_compile_options(spartanport-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
     target_include_directories(spartanport-probe PRIVATE .. ../src)
-    target_link_libraries(spartanport-probe PRIVATE spartanportgpu atrac9 onecore bcrypt ws2_32 -pthread)
+    target_link_libraries(spartanport-probe PRIVATE spartanportgpu atrac9 onecore bcrypt ws2_32 user32 gdi32 shell32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     target_link_options(spartanport-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")

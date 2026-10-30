@@ -384,13 +384,26 @@ void AutoConfigureForGpu(const char* device_name, bool is_integrated) {
     }
     if (IsLowEndGpu(device_name, is_integrated)) {
         v.upscaler = UpscalerFsr3;
-        v.preset = Preset::Quality;
+        const std::string dev = device_name ? device_name : "";
+        std::string lower_dev = dev;
+        std::transform(lower_dev.begin(), lower_dev.end(), lower_dev.begin(), ::tolower);
+        if (lower_dev.find("620") != std::string::npos ||
+            lower_dev.find("630") != std::string::npos ||
+            lower_dev.find("vega 3") != std::string::npos ||
+            lower_dev.find("hd graphics") != std::string::npos) {
+            v.preset = Preset::Balanced;
+            v.startup_preset = Preset::Balanced;
+        } else {
+            v.preset = Preset::Quality;
+            v.startup_preset = Preset::Quality;
+        }
         v.rcas = true;
-        v.rcas_strength = 75;
-        v.startup_preset = Preset::Quality;
+        v.rcas_strength = 50;
         v.startup_upscaler = UpscalerFsr3;
-        std::printf("GPU: Low-spec iGPU detected (%s) -> Auto-enabling FSR 3 Quality preset + RCAS sharpening (+35-50%% FPS boost)\n",
-                    device_name ? device_name : "Unknown");
+        v.anisotropy = 2;
+        std::printf("GPU: Low-spec iGPU detected (%s) -> Auto-enabling FSR 3 %s preset + RCAS 50%% + 2x AF\n",
+                    device_name ? device_name : "Unknown",
+                    v.preset.load() == Preset::Balanced ? "Balanced" : "Quality");
     } else {
         std::printf("GPU: Dedicated or high-performance GPU detected (%s) -> Preserving Native 1080p preset\n",
                     device_name ? device_name : "Unknown");

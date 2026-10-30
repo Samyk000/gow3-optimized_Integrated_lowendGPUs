@@ -36,3 +36,7 @@ patches.json
 *PLAYBOOK*.md
 *playbook*.md
 docs/*PLAYBOOK*.md
+
+# Executable binaries
+*.exe
+

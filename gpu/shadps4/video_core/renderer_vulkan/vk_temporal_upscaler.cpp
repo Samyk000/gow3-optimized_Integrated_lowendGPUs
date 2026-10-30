@@ -362,6 +362,9 @@ void TemporalUpscaler::OnDispatch(u64 cs_hash) {
         return;
     }
     done_this_frame = true;
+    if (camera_motion.HasCut()) {
+        reset = true;
+    }
     if (!scene_color || !camera_motion.Ready() || !Active()) {
         reset = true;
         return;
@@ -995,6 +998,9 @@ bool TemporalUpscaler::RecordReactive(vk::ImageView color_view) {
 }
 
 void TemporalUpscaler::Run() {
+    if (camera_motion.HasCut()) {
+        reset = true;
+    }
     if (auto* profiler = GpuProfiler::Get()) {
         const char* label = SpartanSettings::Get().upscaler == SpartanSettings::UpscalerTaa
             ? "upscaler Run (TAA)" : "upscaler Run (FSR)";
@@ -1134,7 +1140,7 @@ void TemporalUpscaler::Run() {
         info.frameTimeMilliseconds = frame_ms;
         info.preExposure = 1.0f;
         info.cameraNear = camera_motion.Near();
-        info.cameraFar = 3000.0f;
+        info.cameraFar = camera_motion.Far();
         info.cameraVerticalFovRadians = camera_motion.VerticalFov();
         info.viewSpaceToMeters = 1.0f;
         // RCAS strength 0..1 (menu, SPARTAN_FSR_SHARPNESS); jitter at 1:1 softens the image slightly.
@@ -1526,6 +1532,9 @@ void TemporalUpscaler::RunUiOnly(VideoCore::ImageId color_id, VideoCore::ImageId
 }
 
 void TemporalUpscaler::RunScaled() {
+    if (camera_motion.HasCut()) {
+        reset = true;
+    }
     if (auto* profiler = GpuProfiler::Get()) {
         const char* label = SpartanSettings::Get().upscaler == SpartanSettings::UpscalerTaa
             ? "upscaler RunScaled (TAA)" : "upscaler RunScaled (FSR)";
@@ -1729,7 +1738,7 @@ void TemporalUpscaler::RunScaled() {
     info.frameTimeMilliseconds = frame_ms;
     info.preExposure = 1.0f;
     info.cameraNear = camera_motion.Near();
-    info.cameraFar = 3000.0f;
+    info.cameraFar = camera_motion.Far();
     info.cameraVerticalFovRadians = camera_motion.VerticalFov();
     info.viewSpaceToMeters = 1.0f;
     info.sharpness = std::min(settings.sharpness.load(), 1.0f);
@@ -1951,7 +1960,7 @@ bool TemporalUpscaler::RecordFsr4(vk::CommandBuffer cmdbuf, Fsr4Upscaler::Image 
         .jitter = {sign * jitter[0], sign * jitter[1]},
         .frame_ms = frame_ms,
         .near_plane = camera_motion.Near(),
-        .far_plane = 3000.0f,
+        .far_plane = camera_motion.Far(),
         .vertical_fov = camera_motion.VerticalFov(),
         .sharpness = std::min(settings.sharpness.load(), 1.0f),
         .sharpen = settings.sharpen,
