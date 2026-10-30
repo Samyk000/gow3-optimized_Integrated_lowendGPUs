@@ -51,13 +51,13 @@ public:
 
     /// Both cameras and the scene depth of the current frame are known.
     [[nodiscard]] bool Ready() const noexcept {
-        return current.valid && (previous.valid || camera_cut) && depth_id;
+        return current.valid && previous.valid && depth_id;
     }
     [[nodiscard]] bool HasCut() const noexcept {
         return camera_cut;
     }
     [[nodiscard]] float Far() const noexcept {
-        return current_far > 0.0f ? current_far : 3000.0f;
+        return (current_far > 1.0f && std::isfinite(current_far)) ? current_far : 3000.0f;
     }
     [[nodiscard]] VideoCore::ImageId Depth() const noexcept {
         return depth_id;

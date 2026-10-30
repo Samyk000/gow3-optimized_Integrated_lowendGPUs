@@ -153,12 +153,20 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
 CameraMotion::~CameraMotion() = default;
 
 float CameraMotion::VerticalFov() const noexcept {
-    return 2.0f * std::atan(1.0f / current.proj[1]);
+    if (current.proj[1] <= 0.0001f || !std::isfinite(current.proj[1])) {
+        return 1.0472f;
+    }
+    const float fov = 2.0f * std::atan(1.0f / current.proj[1]);
+    return (fov > 0.1f && fov < 3.14f && std::isfinite(fov)) ? fov : 1.0472f;
 }
 
 float CameraMotion::Near() const noexcept {
     // depth = zs + zo / z is 0 at the near plane.
-    return -current.proj[3] / current.proj[2];
+    if (std::abs(current.proj[2]) < 1e-4f || !std::isfinite(current.proj[2]) || !std::isfinite(current.proj[3])) {
+        return 0.1f;
+    }
+    const float near_val = -current.proj[3] / current.proj[2];
+    return (near_val > 0.001f && near_val < 100.0f && std::isfinite(near_val)) ? near_val : 0.1f;
 }
 
 std::array<std::array<float, 4>, 3> CameraMotion::TaaDepthParameters() const noexcept {
@@ -228,10 +236,13 @@ void CameraMotion::RecordMotion(vk::CommandBuffer cmdbuf, vk::ImageView depth_vi
 }
 
 void CameraMotion::OnConstants(const float* data) {
-    // Scene constants: far plane, 1/far, and the render size.
-    // In GOW3, far plane is typically 3000.0f, but can vary in wide vista scenes (e.g. 500.0f to 50000.0f).
-    if (data[0] < 500.0f || data[0] > 100000.0f || data[4] < 64.0f || data[5] < 64.0f ||
-        std::abs(data[1] * data[0] - 1.0f) > 1e-3f) {
+    // Scene constants: far plane 3000, 1/far, and the render size.
+    // Strictly require 3000.0f to prevent non-camera 864-byte buffers (such as video decoders,
+    // post-processing, and UI) from corrupting 3D camera matrices.
+    if (data[0] != 3000.0f || data[4] < 64.0f || data[5] < 64.0f ||
+        std::abs(data[1] * data[0] - 1.0f) > 1e-3f ||
+        !std::isfinite(data[52]) || !std::isfinite(data[57]) ||
+        !std::isfinite(data[62]) || !std::isfinite(data[63])) {
         return;
     }
     if (frame_has_camera) {
@@ -241,7 +252,9 @@ void CameraMotion::OnConstants(const float* data) {
     std::memcpy(current.view.data(), data + 8, 12 * sizeof(float));
     std::memcpy(current.inv_view.data(), data + 180, 12 * sizeof(float));
     current.proj = {data[52], data[57], data[62], data[63]};
-    current.valid = current.proj[0] != 0.0f && current.proj[1] != 0.0f;
+    current.valid = current.proj[0] != 0.0f && current.proj[1] != 0.0f &&
+                    std::isfinite(current.proj[0]) && std::isfinite(current.proj[1]) &&
+                    std::isfinite(current.proj[2]) && std::isfinite(current.proj[3]);
     current_far = data[0];
 
     camera_cut = false;
@@ -261,10 +274,7 @@ void CameraMotion::OnConstants(const float* data) {
         const float fov_delta = std::abs(current.proj[1] - previous.proj[1]);
         const bool fov_jump = previous.proj[1] > 0.0f && (fov_delta / previous.proj[1] > 0.15f);
 
-        // 4. Far plane change (> 10.0f units)
-        const bool far_jump = std::abs(data[0] - previous_far) > 10.0f;
-
-        if (dist_sq > 64.0f || dot_fwd < 0.819f || fov_jump || far_jump) {
+        if (dist_sq > 64.0f || dot_fwd < 0.819f || fov_jump) {
             camera_cut = true;
         }
     } else {

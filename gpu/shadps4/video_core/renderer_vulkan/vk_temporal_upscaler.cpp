@@ -1331,8 +1331,10 @@ void TemporalUpscaler::OnDraw(u64 vs_hash, VideoCore::ImageId color,
          image.info.pixel_format == vk::Format::eR8G8B8A8Srgb) &&
         RenderTarget(image.info.size.width, image.info.size.height) &&
         !FrameCapture::IsDisplayBuffer(image.info.guest_address);
+    const bool is_movie_frame = vs_hash == ui_trigger_vs || UiComposition::MovieShader(vs_hash);
+    const bool allow_temporal = !is_movie_frame && camera_motion.Ready() && ldr_target == color;
     switch (UiComposition::Choose(Scaled(), ui_draw,
-                                  camera_motion.Ready() && ldr_target == color,
+                                  allow_temporal,
                                   Active() && !failed)) {
     case UiComposition::Background::None:
         return;
